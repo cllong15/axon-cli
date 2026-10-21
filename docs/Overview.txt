@@ -1,0 +1,588 @@
+### Recommended Starting Path
+
+Following idiomatic Go clean/layered architecture (inside-out), here is the step-by-step sequence of where to start:
+
+#### 1. Foundation: Module & Config (Start Here)
+// * **Initialize [`go.mod`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/go.mod)
+* **: Initialize the Go module with your package path and add drivers/libraries (e.g., `github.com/jackc/pgx/v5` for PostgreSQL connection pooling).
+* **Environment Configuration ([`internal/config/config.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/config/config.go))
+* **: Replace the hardcoded `DATABASE_URL` fallback in [`main.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/cmd/api/main.go#L19-L22) with a typed config struct and populate [`.env.example`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/.env.example).
+
+#### 2. Domain Entities & Interfaces
+* **Model & Contracts ([`internal/domain/asset.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/domain/asset.go))**: Define the core `Asset` struct (ID, serial number, name, type, status, created/updated timestamps) and declare repository/service interface contracts. Because domain has no dependencies, this defines how the rest of the application interacts.
+* **Model & Contracts ([`internal/domain/asset.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/domain/asset.go))**: Define the core `Asset` struct (ID, asset tag, model, serial number, type, status, created/updated timestamps) and declare repository/service interface contracts. Because domain has no dependencies, this defines how the rest of the application interacts.
+* **Domain Errors ([`internal/domain/errors.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/domain/errors.go))**: Define sentinel domain errors (e.g., `ErrAssetNotFound`, `ErrDuplicateSerial`, `ErrInvalidInput`).
+
+#### 3. Database Layer & Migrations
+* **Schema ([`migrations/000001_create_assets_table.up.sql`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/migrations/000001_create_assets_table.up.sql))**: Create the `assets` table schema matching the domain model.
+* **Connection Pool ([`internal/repository/db.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/repository/db.go))**: Implement the connection pool using `pgxpool.New`.
+* **Repository ([`internal/repository/asset_repo.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/repository/asset_repo.go))**: Implement SQL queries for `Create` and `GetByID`.
+
+#### 4. Business Logic (Service Layer)
+* **Service ([`internal/service/asset_service.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/service/asset_service.go))**: Implement validation logic (e.g., non-empty name, valid serial number, valid asset type) and coordinate with the repository.
+* **Service ([`internal/service/asset_service.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/service/asset_service.go))**: Implement validation logic (e.g., non-empty asset tag, non-empty model, valid serial number, valid asset type) and coordinate with the repository.
+
+#### 5. HTTP Handlers & Routing
+* **Handler ([`internal/handler/asset_handler.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/handler/asset_handler.go))**: Implement JSON request decoding, response serialization, and HTTP status codes (201 Created, 400 Bad Request, 404 Not Found, 500 Internal Error).
+* **Router & Middleware ([`internal/handler/router.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/handler/router.go), [`internal/handler/middleware.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/handler/middleware.go))**: Attach logging and panic recovery middleware.
+
+#### 6. Wire in `main.go`
+* Uncomment and initialize the layers in [`cmd/api/main.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/cmd/api/main.go) and test end-to-end against the database in Docker.
+
+---
+
+### Immediate Next Step
+
+Begin with **Step 1 & Step 2**: initialize [`go.mod`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/go.mod), define the configuration in [`internal/config/config.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/config/config.go), and declare the core domain structs and interface contracts in [`internal/domain/asset.go`](file:///c:/Users/Conor/Documents/Projects/Github.com/Gavril-Do/Go-Rest-API/internal/domain/asset.go).
+
+=========================
+=========================
+=========================
+=========================
+=========================
+
+
+The best portfolio projects show you understand **engineering discipline, architecture, and reliability**, rather than just following a framework tutorial. Recruiters and hiring engineers look for projects that solve a concrete problem, handle edge cases, and simulate real-world production code.
+
+---
+
+### Tier 1: High-Impact Project Archetypes
+
+#### 1. Backend REST/gRPC Microservice with Data Persistence
+
+* **Why it stands out:** Every engineering team needs people who can handle relational schemas, authentication, and structured APIs.
+* **Key technologies:** Go (standard library or Chi/Gin) or Python (FastAPI), PostgreSQL, Docker, Redis (for caching/rate-limiting).
+* **Core features to build:**
+* JWT-based authentication and role-based access control (RBAC).
+* CRUD endpoints with robust input validation and consistent error schemas.
+* Integration testing suite verifying database transactions and rollback behavior.
+* A Docker Compose setup that spins up the app, database, and cache in one command.
+
+#### 2. Robust CLI / Automation Developer Tool
+
+* **Why it stands out:** Shows you can build tools that improve developer productivity and interact cleanly with operating systems, file systems, and network sockets.
+* **Key technologies:** Go (using `spf13/cobra`) or Python (`click` / `argparse`).
+* **Core features to build:**
+* A utility that parses unstructured server/app logs, identifies anomalies, and exports formatted metrics or alerts (e.g., to Slack/Discord webhooks).
+* A multi-threaded or concurrent scraper/health-checker that pings an array of endpoints concurrently using goroutines/worker pools and generates a status dashboard.
+* Support for standard POSIX flags, clear `--help` output, stdout/stderr separation, and pipeable JSON output.
+
+#### 3. Automated Test Framework & CI Pipeline (SDET Focus)
+
+* **Why it stands out:** QA and SDET roles value candidates who treat tests as software engineering deliverables.
+* **Key technologies:** Python (`pytest`), Playwright/Selenium, GitHub Actions, Docker.
+* **Core features to build:**
+* End-to-end API test suite running against a mock backend or public API.
+* Page Object Model (POM) architecture for browser test automation.
+* A GitHub Actions workflow running tests on pull requests, generating HTML test reports and coverage metrics.
+
+#### 4. Event-Driven Job Processor / Task Queue
+
+* **Why it stands out:** Demonstrates that you understand asynchronous execution, concurrency, and message durability beyond simple synchronous request-response loops.
+* **Key technologies:** Go or Python, Redis/RabbitMQ, SQLite/Postgres.
+* **Core features to build:**
+* An endpoint that accepts a heavy background job (e.g., image resizing, report generation, or bulk CSV processing).
+* Worker processes that consume jobs from a queue, track execution state (pending, processing, failed, complete), and implement exponential backoff on failure.
+
+---
+
+### What Turns an Average Project into an "Offer-Winning" Project
+
+Hiring managers often skim past generic todo apps or basic clones. What catches their attention is **production hygiene**:
+
+| Aspect | Average Project | Standout Project |
+| --- | --- | --- |
+| **Testing** | 0% tests, manual checks | Comprehensive unit & integration tests (`pytest` or Go `testing`) |
+| **Data & Errors** | App crashes on unexpected input | Graceful error responses, proper HTTP status codes, structured logging |
+| **Setup Friction** | "Works on my machine" | Single-command setup via `docker-compose up` or `Makefile` |
+| **Documentation** | Default README or empty file | Architecture diagram, API endpoint documentation, setup guide, and rationale for technical choices |
+| **Git Hygiene** | "Initial commit" + 2 massive commits | Feature branches, atomic commits with clear messages, PR descriptions |
+
+---
+
+### Recommended Portfolio Mix
+
+For a strong technical resume, aim for **2 to 3 well-executed projects**:
+
+1. **One deep backend API / Service:** Proves database modeling, API design, testing, and business logic.
+2. **One systems / CLI / automation utility:** Proves proficiency with low-level execution, concurrency, and tooling.
+3. **One domain-specific project:** Tailored directly to the role you want (e.g., an automated end-to-end testing suite for SDET roles, or an async message worker for distributed backend roles).
+
+=========================
+=========================
+=========================
+=========================
+=========================
+
+Here is an architectural overview, core feature set, and resume positioning strategy for each of the three projects.
+
+---
+
+### Project 1: Production-Grade Go REST API (Microservice)
+
+A lightweight, robust backend service designed around idiomatic Go standards, persistence, and containerization.
+
+* **Target Tech Stack:** Go (Standard library `net/http` or `Chi` router), PostgreSQL (`pgx` or `sqlc`), Docker & Docker Compose, GitHub Actions.
+* **Core Problem It Solves:** Manages structured domain data (e.g., an automated server/asset inventory, task scheduler, or subscription management service) while maintaining strict type safety, data integrity, and low latency.
+* **Key Architecture & Features:**
+* **Layered Architecture:** Clear separation of concerns (Handler/Controller $\rightarrow$ Service/Business Logic $\rightarrow$ Repository/Data Access Layer).
+* **Authentication & AuthZ:** Stateless JWT auth, password hashing via `bcrypt`, and role-based route middleware.
+* **Database Persistence:** Explicit migrations (using `golang-migrate`), parameterized SQL queries to prevent injection, and database connection pooling.
+* **Robust Middleware:** Structured request logging (via Go’s standard `slog`), panic recovery, request ID propagation via `context.Context`, and CORS headers.
+* **Testing Suite:** Idiomatic table-driven unit tests for service layers and Docker-backed integration tests for database queries.
+
+* **Resume Bullet Framing:**
+> *"Architected a concurrent REST API in Go utilizing a clean layered architecture, PostgreSQL persistence, and JWT authentication; achieved 85%+ code coverage with table-driven tests and containerized the service using multi-stage Docker builds."*
+
+---
+
+### Project 2: High-Performance CLI & Automation Tool
+
+A compiled, standalone command-line utility built to automate tedious infrastructure workflows, audit environments, or parse telemetry.
+
+* **Target Tech Stack:** Go (`spf13/cobra`, `spf13/viper`) or Python (`click`), POSIX standards, Git.
+* **Core Problem It Solves:** Eliminates manual administrative toil by querying multi-node systems concurrently, inspecting log anomalies, or validating configuration files across fleets.
+* **Key Architecture & Features:**
+* **Concurrency & Worker Pools:** Uses Go goroutines and buffered channels (or Python `asyncio`/`multiprocessing`) to inspect remote network endpoints or parse multi-gigabyte log files simultaneously without memory spikes.
+* **Unix Philosophy:** Implements POSIX-compliant flags (`-v`, `--config`, `--format json`), outputs machine-parseable JSON or clean human-readable terminal tables, and handles graceful exits (`SIGINT`/`SIGTERM`).
+* **Configuration Engine:** Supports cascading configurations (environment variables $\rightarrow$ YAML/JSON config file $\rightarrow$ command-line flags).
+* **Distribution Pipeline:** Automates cross-platform binary compilation (Linux, macOS, Windows) via GitHub Actions and GoReleaser.
+
+
+* **Resume Bullet Framing:**
+> *"Developed a cross-platform systems audit CLI tool in Go utilizing goroutine worker pools to parse multi-node log streams concurrently, reducing manual diagnostic inspection time by over 70%."*
+
+---
+
+### Project 3: Automated API & Web Test Framework (SDET)
+
+A production-grade test automation harness that validates web endpoints and UI workflows within a CI/CD pipeline.
+
+* **Target Tech Stack:** Python (`pytest`, `requests`, `playwright`), Allure/HTML Reporting, GitHub Actions, Docker.
+* **Core Problem It Solves:** Prevents software regressions and catches edge-case failures early in the development lifecycle by automating verification at both the HTTP/API and UI layers.
+* **Key Architecture & Features:**
+* **Multi-Layer Verification:**
+* **API Layer:** Validates status codes, response payloads, JSON schemas (`pydantic` or `jsonschema`), and response latency thresholds under varied inputs.
+* **UI Layer:** Implements the **Page Object Model (POM)** pattern to keep test logic clean, reusable, and decoupled from underlying DOM changes.
+
+* **Data-Driven Fixtures:** Leverages `pytest` fixtures for environment setup/teardown, mock token creation, and test isolation.
+* **Continuous Integration:** Fully integrated GitHub Actions workflow running headless test executions on every Pull Request, generating downloadable HTML test reports with failure screenshots/traces.
+
+* **Resume Bullet Framing:**
+> *"Engineered an end-to-end automated testing framework using Python, Pytest, and Playwright; integrated regression suites into GitHub Actions CI, cutting manual release validation cycles from hours to minutes."*
+
+---
+
+### Comparison & Selection Strategy
+
+| Project | Primary Focus | Best Used To Showcase |
+| --- | --- | --- |
+| **Go REST API** | Software Architecture & Persistence | Data modeling, SQL, API design, middleware, and containerization. |
+| **CLI Systems Tool** | Concurrency & Low-Level Execution | Goroutines/channels, memory efficiency, POSIX standards, and systems problem-solving. |
+| **SDET / QA Harness** | Quality Engineering & CI/CD | Test design, schema validation, UI automation, and automated deployment checks.
+
+=========================
+=========================
+=========================
+=========================
+=========================
+
+To answer your main concern directly: **No, you do not need to build a full website, and you do not need an existing external server.**
+
+In modern software engineering, the **backend (API/server)** and the **frontend (website/UI)** are separate applications. A backend engineer’s product is often an API server that accepts JSON requests and returns JSON responses.
+
+Here is an explanation of what each project actually is, what it is for, and how it runs without needing a frontend:
+
+---
+
+### 1. The Go REST API
+
+#### *What is it for?*
+
+It is an independent **backend service** that acts as the brain and database manager for an application.
+
+You choose a specific business problem for it to model. Good options include:
+
+* **An IT Asset & License Tracker:** Keeps track of computers, assigned users, warranties, and software seat counts (leveraging your real-world systems background).
+* **An Incident/Status Page Service:** Tracks server incidents, maintenance windows, and status updates (similar to Statuspage.io).
+* **An API Rate-Limiter or URL Shortener:** A lightweight, high-performance infrastructure utility.
+
+#### *Do you need a website or an existing server?*
+
+* **No website required:** You do not need to write HTML, CSS, or React. During interviews and portfolio reviews, developers demonstrate APIs using:
+* Tools like **Postman** or **cURL** in the terminal.
+* An automated **Swagger / OpenAPI documentation page**, which automatically generates a clean web interface where anyone can click "Try it out" and test your endpoints directly.
+
+* **Runs locally in Docker:** You don't need to pay for or maintain a live cloud server. You provide a `docker-compose.yml` file in your GitHub repo. Anyone reviewing your code can run `docker compose up` on their machine, and your Go server and a PostgreSQL database will spin up and talk to each other automatically.
+
+---
+
+### 2. The CLI & Automation Tool
+
+#### *What is it for?*
+
+A **Command-Line Interface (CLI)** tool is a standalone terminal program (like `git`, `docker`, or `kubectl`) that a developer or system administrator installs and runs from their command prompt.
+
+It is designed to solve operational headaches and automate repetitive tasks. Good project concepts include:
+
+* **Log Sentinel / Anomaly Inspector:** A CLI tool where a user runs `logaudit inspect --file /var/log/app.log --threshold error`, which scans gigabytes of log lines concurrently, aggregates error patterns, and outputs a formatted terminal report or JSON summary.
+* **Fleet / Endpoint Health Checker:** A tool where you run `fleetcheck --config endpoints.yaml`, and it uses Go concurrency (goroutines) to ping 50+ remote HTTP/TCP services at once, reporting latency and uptime status.
+* **Config Validator / Secret Linter:** A tool that scans directories for insecure configuration files, exposed `.env` credentials, or syntax errors before code is pushed to Git.
+
+#### *Do you need a website or an existing server?*
+
+* **No website:** It runs entirely inside the terminal / command prompt.
+* **No server:** It executes locally as a compiled binary file (e.g., `audit.exe` or `./audit`). You can use GitHub Releases so people can download and run the binary on Mac, Windows, or Linux.
+
+---
+
+### 3. The Automated Test Framework (SDET)
+
+#### *What is it for?*
+
+This project does not serve end users; instead, **it tests other software to ensure nothing is broken.**
+
+In software companies, before code is pushed to production, an automated harness runs dozens or hundreds of programmatic tests. This framework writes those tests and runs them automatically.
+
+It typically tests two targets:
+
+1. **API Testing:** Sends automated HTTP requests (POST, GET, PUT, DELETE) to a backend service and verifies that the status codes, data schemas, and response times match specifications.
+2. **UI End-to-End Testing:** Uses a tool like **Playwright**, which launches a headless browser behind the scenes, programmatically navigates pages, types into forms, clicks buttons, and verifies that the page behaves properly under real-user conditions.
+
+#### *What does it test, and do you need a website?*
+
+* **You test an existing public app or mock app:** You don't build the app being tested. You can run your tests against:
+* Your own Go REST API project (which connects your portfolio together).
+* Widely used open-source practice platforms built specifically for automation testing (like *SauceDemo*, *ReqRes*, or *Restful-Booker*).
+
+
+* **Output:** The deliverable isn't a website you created, but an **automated test report** (HTML graphs, execution logs, pass/fail status, and failure screenshots) generated automatically every time code is committed via GitHub Actions.
+
+---
+
+### Summary
+
+| Project | What It Is | Who/What Uses It | Deliverable to Show |
+| --- | --- | --- | --- |
+| **Go REST API** | A standalone backend server | Other programs, mobile apps, or frontend sites sending JSON | GitHub repo + `docker-compose` + Swagger/Postman docs |
+| **CLI Tool** | A terminal executable utility | Engineers, sysadmins, or devops running commands | Single runnable binary file + terminal output GIFs in README |
+| **SDET Harness** | Test scripts & pipeline runner | Continuous Integration (CI/CD) pipelines | Automated test reports, code coverage, and CI build badges |
+
+=========================
+=========================
+=========================
+=========================
+=========================
+
+### 1. Go REST API Scaffold: IT Asset & License Tracker
+
+This structure follows standard Go project layout conventions (`cmd/`, `internal/`) to enforce a clean separation of concerns: **transport layer (HTTP handlers)** $\rightarrow$ **business logic (service layer)** $\rightarrow$ **storage (repository layer)**.
+
+#### Directory Layout
+
+```text
+asset-tracker/
+├── cmd/
+│   └── api/
+│       └── main.go                 # Application entry point, config parsing, dependency wiring
+├── internal/
+│   ├── config/
+│   │   └── config.go               # Reads env vars (DB credentials, port, JWT secrets)
+│   ├── domain/
+│   │   ├── asset.go                # Domain models, request/response structs, interface contracts
+│   │   └── errors.go               # Central domain-level errors
+│   ├── handler/
+│   │   ├── asset_handler.go        # HTTP handlers, JSON decoding, status code management
+│   │   ├── middleware.go           # Logging, JWT validation, panic recovery
+│   │   └── router.go               # Route registration using standard net/http or Chi
+│   ├── repository/
+│   │   ├── asset_repo.go           # Raw SQL queries / pgx database operations
+│   │   └── db.go                   # Postgres connection pool initialization
+│   └── service/
+│       └── asset_service.go        # Business logic, validation rules, transactional coordination
+├── migrations/
+│   ├── 000001_create_assets_table.up.sql
+│   └── 000001_create_assets_table.down.sql
+├── .env.example
+├── docker-compose.yml              # Spins up Postgres & migration runners locally
+├── Dockerfile                      # Multi-stage production Go build
+├── go.mod
+├── go.sum
+└── Makefile                        # Shortcuts: make run, make test, make migrate-up
+
+```
+
+#### Core Code Skeleton (`cmd/api/main.go`)
+
+```go
+package main
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
+
+func main() {
+	// 1. Structured Logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	// 2. Load Config & Connect DB (Mocked representation)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:secret@localhost:5432/assets?sslmode=disable"
+	}
+	slog.Info("initializing database connection pool", "url", dbURL)
+
+	// 3. Wire Layers (Repo -> Service -> Handlers)
+	// repo := repository.NewAssetRepository(db)
+	// svc := service.NewAssetService(repo)
+	// handler := handler.NewAssetHandler(svc)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy"}`))
+	})
+	// mux.HandleFunc("POST /api/v1/assets", handler.CreateAsset)
+	// mux.HandleFunc("GET /api/v1/assets/{id}", handler.GetAssetByID)
+
+	server := &http.Server{
+		Addr:         ":8080",
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// 4. Graceful Shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		slog.Info("server running", "addr", server.Addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed to listen", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-stop
+	slog.Info("shutting down server gracefully...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		slog.Error("forced shutdown", "error", err)
+	}
+	slog.Info("server stopped cleanly")
+}
+
+```
+
+#### Minimal `docker-compose.yml`
+
+```yaml
+version: "3.8"
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: assets_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+
+```
+
+---
+
+### 2. High-Performance CLI Scaffold: Concurrent Health Checker
+
+This tool reads a list of target endpoints, checks them in parallel using a **worker pool** (Go channels + WaitGroups), and outputs formatted JSON or table summaries.
+
+#### Directory Layout
+
+```text
+netprobe/
+├── cmd/
+│   └── root.go                 # Cobra base command and global flags (-v, --config)
+├── internal/
+│   ├── checker/
+│   │   ├── client.go           # Configured http.Client with custom dial/read timeouts
+│   │   └── worker_pool.go      # Dispatches URLs to N concurrent worker goroutines
+│   ├── config/
+│   │   └── config.go           # Parses YAML/JSON lists of URLs and thresholds
+│   └── output/
+│       ├── json.go             # Machine-readable output formatter
+│       └── table.go            # Clean terminal table view
+├── .goreleaser.yaml            # Automates multi-platform binary compilation
+├── go.mod
+├── go.sum
+└── main.go                     # Calls cmd.Execute()
+
+```
+
+#### Core Code Skeleton (`internal/checker/worker_pool.go`)
+
+```go
+package checker
+
+import (
+	"net/http"
+	"sync"
+	"time"
+)
+
+type CheckResult struct {
+	URL        string        `json:"url"`
+	StatusCode int           `json:"status_code"`
+	Latency    time.Duration `json:"latency"`
+	Error      string        `json:"error,omitempty"`
+}
+
+// RunPool distributes target URLs across a set number of concurrent workers
+func RunPool(urls []string, workerCount int, timeout time.Duration) []CheckResult {
+	jobs := make(chan string, len(urls))
+	resultsChan := make(chan CheckResult, len(urls))
+	var wg sync.WaitGroup
+
+	client := &http.Client{Timeout: timeout}
+
+	// Spin up workers
+	for w := 1; w <= workerCount; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for url := range jobs {
+				start := time.Now()
+				resp, err := client.Get(url)
+				latency := time.Since(start)
+
+				if err != nil {
+					resultsChan <- CheckResult{URL: url, Latency: latency, Error: err.Error()}
+					continue
+				}
+				resp.Body.Close()
+				resultsChan <- CheckResult{URL: url, StatusCode: resp.StatusCode, Latency: latency}
+			}
+		}()
+	}
+
+	// Feed jobs
+	for _, url := range urls {
+		jobs <- url
+	}
+	close(jobs)
+
+	// Wait and collect
+	wg.Wait()
+	close(resultsChan)
+
+	var results []CheckResult
+	for res := range resultsChan {
+		results = append(results, res)
+	}
+	return results
+}
+
+```
+
+---
+
+### 3. Automated SDET Test Framework Scaffold: Python + Pytest + Playwright
+
+This framework validates both REST API endpoints and web UI workflows using reusable fixtures, configuration management, and the Page Object Model (POM).
+
+#### Directory Layout
+
+```text
+qa-automation-framework/
+├── .github/
+│   └── workflows/
+│       └── test-run.yml        # Runs pytest on PR, packages HTML/Allure reports
+├── config/
+│   ├── config.py               # Handles environment URLs, credentials, timeouts
+│   └── test_environments.json  # Dev, Staging, Local targets
+├── pages/                      # Page Object Model (UI Testing)
+│   ├── base_page.py            # Reusable Playwright wrappers (click, type, wait)
+│   └── login_page.py           # Specific UI elements & actions
+├── tests/
+│   ├── api/
+│   │   ├── test_assets_api.py  # Status code, schema, and latency tests
+│   │   └── test_auth_api.py    # Happy/unhappy path authentication validation
+│   └── ui/
+│       └── test_user_flow.py   # Browser-driven end-to-end integration flow
+├── utils/
+│   ├── api_client.py           # Wrapped requests.Session with default headers/auth
+│   └── schema_validator.py     # Compares responses against Pydantic models
+├── conftest.py                 # Shared Pytest fixtures (browser context, API tokens)
+├── pytest.ini                  # Pytest flags, custom markers, and logging config
+├── requirements.txt            # pytest, playwright, requests, pydantic
+└── Dockerfile                  # Container for headless test execution
+
+```
+
+#### Core Code Skeleton (`conftest.py` & `tests/api/test_assets_api.py`)
+
+**`conftest.py` (Central Fixture Management):**
+
+```python
+import pytest
+import requests
+
+@pytest.fixture(scope="session")
+def base_url():
+    return "http://localhost:8080"
+
+@pytest.fixture(scope="session")
+def auth_headers(base_url):
+    """Generates an authentication token for test runs."""
+    # In production, this hits an auth endpoint or uses a pre-seeded test secret
+    token = "test-jwt-bearer-token"
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+@pytest.fixture
+def api_client(auth_headers):
+    """Creates a configured HTTP session for API tests."""
+    session = requests.Session()
+    session.headers.update(auth_headers)
+    yield session
+    session.close()
+
+```
+
+**`tests/api/test_assets_api.py` (API Test Implementation):**
+
+```python
+import pytest
+
+def test_health_check_returns_ok(base_url, api_client):
+    response = api_client.get(f"{base_url}/healthz")
+    assert response.status_code == 200
+    assert response.json().get("status") == "healthy"
+
+@pytest.mark.parametrize("payload, expected_status", [
+    ({"name": "MacBook Pro 16", "serial": "C02XYZ123", "type": "Laptop"}, 201),
+    ({"name": "", "serial": "C02XYZ123", "type": "Laptop"}, 400), # Missing name
+    ({"name": "Dell Display", "serial": "", "type": "Monitor"}, 400), # Missing serial
+    ({"asset_tag": "TAG-001", "model": "MacBook Pro 16", "serial": "C02XYZ123", "type": "Laptop"}, 201),
+    ({"asset_tag": "", "model": "MacBook Pro 16", "serial": "C02XYZ123", "type": "Laptop"}, 400), # Missing asset_tag
+    ({"asset_tag": "TAG-002", "model": "Dell Display", "serial": "", "type": "Monitor"}, 400), # Missing serial
+])
+def test_create_asset_validation(base_url, api_client, payload, expected_status):
+    response = api_client.post(f"{base_url}/api/v1/assets", json=payload)
+    assert response.status_code == expected_status
