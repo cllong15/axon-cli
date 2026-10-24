@@ -147,6 +147,10 @@ A compiled, standalone command-line utility built to automate tedious infrastruc
 * **Unix Philosophy:** Implements POSIX-compliant flags (`-v`, `--config`, `--format json`), outputs machine-parseable JSON or clean human-readable terminal tables, and handles graceful exits (`SIGINT`/`SIGTERM`).
 * **Configuration Engine:** Supports cascading configurations (environment variables $\rightarrow$ YAML/JSON config file $\rightarrow$ command-line flags).
 * **Distribution Pipeline:** Automates cross-platform binary compilation (Linux, macOS, Windows) via GitHub Actions and GoReleaser.
+* **Socket & Connection Hygiene:** Drains response bodies to io.Discard prior to closing, allowing Go's http.Transport connection pool to reuse idle keep-alive TCP sockets without connection thrashing.
+* **Input Normalization & IP Address Support:** Auto-prefixes https:// for bare domains, handles IPv4/IPv6 addresses, and expands CIDR subnets (e.g., 10.0.0.0/24) or TCP socket checks (host:port) across fleets.
+* **CI/CD Deployment Gate:** Supports non-zero exit codes (--fail-on-error) to act as a hard release verification gate in deployment pipelines.
+* **Operational Telemetry & Anomaly Filtering:** Enables HTTP method selection (-m HEAD|GET), error-only anomaly filtering (--only-errors), and latency SLA threshold alerting (--threshold).
 
 
 * **Resume Bullet Framing:**
