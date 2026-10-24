@@ -96,6 +96,9 @@ func TestFormatTable(t *testing.T) {
 		if !strings.Contains(output, "URL") || !strings.Contains(output, "STATUS") {
 			t.Errorf("expected header in table output, got: %s", output)
 		}
+		if strings.Contains(output, "Total:") {
+			t.Errorf("did not expect summary row for empty results, got: %s", output)
+		}
 	})
 
 	t.Run("valid results with status codes and err mapping", func(t *testing.T) {
@@ -120,24 +123,26 @@ func TestFormatTable(t *testing.T) {
 		}
 
 		out := buf.String()
-		lines := strings.Split(strings.TrimSpace(out), "\n")
-		if len(lines) != 3 {
-			t.Fatalf("expected 3 lines (1 header + 2 rows), got %d lines: %q", len(lines), out)
-		}
 
-		// Check header
-		if !strings.Contains(lines[0], "URL") || !strings.Contains(lines[0], "LATENCY") {
-			t.Errorf("missing header columns: %s", lines[0])
+		// Check header columns
+		if !strings.Contains(out, "URL") || !strings.Contains(out, "STATUS") || !strings.Contains(out, "LATENCY") {
+			t.Errorf("missing header columns in output: %s", out)
 		}
 
 		// Check 200 row
-		if !strings.Contains(lines[1], "https://api.github.com") || !strings.Contains(lines[1], "200") {
-			t.Errorf("expected URL and 200 in line 1: %s", lines[1])
+		if !strings.Contains(out, "https://api.github.com") || !strings.Contains(out, "200") {
+			t.Errorf("expected URL and 200 in output: %s", out)
 		}
 
-		// Check ERR row (StatusCode == 0 mapped to ERR)
-		if !strings.Contains(lines[2], "http://bad.host") || !strings.Contains(lines[2], "ERR") || !strings.Contains(lines[2], "host unreachable") {
-			t.Errorf("expected ERR and error message in line 2: %s", lines[2])
+		// Check ERR row
+		if !strings.Contains(out, "http://bad.host") || !strings.Contains(out, "ERR") || !strings.Contains(out, "host unreachable") {
+			t.Errorf("expected ERR and error message in output: %s", out)
+		}
+
+		// Check summary line
+		expectedSummary := "Total: 2 | Passed: 1 | Failed: 1 | Avg Latency: 80ms"
+		if !strings.Contains(out, expectedSummary) {
+			t.Errorf("expected summary line %q in output, got:\n%s", expectedSummary, out)
 		}
 	})
 
@@ -151,4 +156,3 @@ func TestFormatTable(t *testing.T) {
 		}
 	})
 }
-

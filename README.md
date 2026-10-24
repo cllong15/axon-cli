@@ -95,6 +95,14 @@ URL                                STATUS   LATENCY   ERROR
 https://api.github.com             200      142ms     -
 https://httpbin.org/status/200     200      284ms     -
 https://httpbin.org/status/503     503      310ms     -
+
+Total: 3 | Passed: 2 | Failed: 1 | Avg Latency: 245ms
+```
+
+### File-Based Targets
+Audit large lists of targets from a text file (one URL per line, supports `#` comments):
+```bash
+axon -i targets.txt -w 20
 ```
 
 ### High-Throughput Fleet Audit
@@ -125,9 +133,11 @@ axon -f json https://service-a.com https://service-b.com | jq '.[] | select(.sta
 
 | Flag | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
+| `--file` | `-i` | `""` | Path to file containing target URLs (one per line) |
 | `--workers` | `-w` | `10` | Maximum number of concurrent worker goroutines |
 | `--timeout` | `-t` | `5s` | Per-request network timeout duration |
 | `--format` | `-f` | `table` | Presentation format (`table` or `json`) |
+| `--version` | `-v` | — | Display version information (`1.0.1`) |
 | `--help` | `-h` | — | Display help information |
 
 ---

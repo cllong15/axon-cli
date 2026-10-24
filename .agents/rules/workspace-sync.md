@@ -1,6 +1,6 @@
 ---
 always_on: true
-workspace_identity: "Go-Rest-API-Monorepo"
+workspace_identity: "axon-cli"
 ---
 
 # Cross-Device Workspace Mapping Rule
