@@ -7,39 +7,47 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/spf13/cobra"
 )
 
-var cfg = config.DefaultConfig()
+var versionNum = "1.0.2"
 
-var targetFile string
+func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	cfg := config.DefaultConfig()
+	var targetFile string
+	var showVersion bool
 
-var rootCmd = &cobra.Command{
-	Use:     "axon [urls...]",
-	Version: "1.0.1",
-	Short:   "High-performance concurrent endpoint health auditor",
-	RunE:    run,
-}
+	fs := flag.NewFlagSet("axon", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.IntVar(&cfg.WorkerCount, "workers", 10, "Number of concurrent workers")
+	fs.IntVar(&cfg.WorkerCount, "w", 10, "number of concurrent workers (shorthand)")
 
-func ExecuteContext(ctx context.Context) error {
-	return rootCmd.ExecuteContext(ctx)
-}
+	fs.DurationVar(&cfg.Timeout, "timeout", 5*time.Second, "Request timeout")
+	fs.DurationVar(&cfg.Timeout, "t", 5*time.Second, "Request timeout (shorthand)")
 
-func init() {
-	rootCmd.Flags().IntVarP(&cfg.WorkerCount, "workers", "w", 10, "Number of concurrent workers")
-	rootCmd.Flags().DurationVarP(&cfg.Timeout, "timeout", "t", 5*time.Second, "Request timeout")
-	rootCmd.Flags().StringVarP(&cfg.OutputFormat, "format", "f", "table", "Output format (table|json)")
-	rootCmd.Flags().StringVarP(&targetFile, "file", "i", "", "path to file containing URLs (one per line)")
-}
+	fs.StringVar(&cfg.OutputFormat, "format", "table", "Output format (table|json)")
+	fs.StringVar(&cfg.OutputFormat, "f", "table", "Output format (table|json)")
 
-func run(cmd *cobra.Command, args []string) error {
-	if len(args) > 0 {
-		cfg.Targets = args
+	fs.StringVar(&targetFile, "file", "", "Path to file containing URLs")
+	fs.StringVar(&targetFile, "i", "", "Path to file containing URLs")
+
+	fs.BoolVar(&showVersion, "version", false, "Display version information")
+	fs.BoolVar(&showVersion, "v", false, "Display version information (shorthand)")
+
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
+	if showVersion {
+		fmt.Fprintf(stdout, "axon version %s\n", versionNum)
+		return nil
+	}
+
+	cfg.Targets = append(cfg.Targets, fs.Args()...)
 	if targetFile != "" {
 		f, err := os.Open(targetFile)
 		if err != nil {
@@ -63,9 +71,9 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	results := checker.RunPool(cmd.Context(), cfg.Targets, cfg.WorkerCount, cfg.Timeout)
+	results := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout)
 	if cfg.OutputFormat == "json" {
-		return output.FormatJSON(cmd.OutOrStdout(), results)
+		return output.FormatJSON(stdout, results)
 	}
-	return output.FormatTable(cmd.OutOrStdout(), results)
+	return output.FormatTable(stdout, results)
 }
