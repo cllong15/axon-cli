@@ -13,12 +13,12 @@ import (
 func TestRunPool_EmptyURLs(t *testing.T) {
 	ctx := context.Background()
 
-	resNil := RunPool(ctx, nil, 5, time.Second)
+	resNil := RunPool(ctx, nil, 5, time.Second, "GET")
 	if resNil != nil {
 		t.Errorf("expected nil for nil urls, got %v", resNil)
 	}
 
-	resEmpty := RunPool(ctx, []string{}, 5, time.Second)
+	resEmpty := RunPool(ctx, []string{}, 5, time.Second, "")
 	if resEmpty != nil {
 		t.Errorf("expected nil for empty urls, got %v", resEmpty)
 	}
@@ -43,7 +43,7 @@ func TestRunPool_SuccessAndStatusCodes(t *testing.T) {
 	urls := []string{s1.URL, s2.URL, s3.URL}
 	ctx := context.Background()
 
-	results := RunPool(ctx, urls, 3, 2*time.Second)
+	results := RunPool(ctx, urls, 3, 2*time.Second, "GET")
 
 	if len(results) != 3 {
 		t.Fatalf("expected 3 results, got %d", len(results))
@@ -78,7 +78,7 @@ func TestRunPool_NetworkError(t *testing.T) {
 	badURL := "http://127.0.0.1:1"
 	ctx := context.Background()
 
-	results := RunPool(ctx, []string{badURL}, 1, 500*time.Millisecond)
+	results := RunPool(ctx, []string{badURL}, 1, 500*time.Millisecond, "GET")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -96,7 +96,7 @@ func TestRunPool_InvalidURLSyntax(t *testing.T) {
 	invalidURL := "http://invalid domain with spaces"
 	ctx := context.Background()
 
-	results := RunPool(ctx, []string{invalidURL}, 1, time.Second)
+	results := RunPool(ctx, []string{invalidURL}, 1, time.Second, "GET")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -115,7 +115,7 @@ func TestRunPool_Timeout(t *testing.T) {
 	defer slowServer.Close()
 
 	ctx := context.Background()
-	results := RunPool(ctx, []string{slowServer.URL}, 1, 50*time.Millisecond)
+	results := RunPool(ctx, []string{slowServer.URL}, 1, 50*time.Millisecond, "GET")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -141,7 +141,7 @@ func TestRunPool_ContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	results := RunPool(ctx, []string{slowServer.URL}, 1, 2*time.Second)
+	results := RunPool(ctx, []string{slowServer.URL}, 1, 2*time.Second, "GET")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -161,13 +161,13 @@ func TestRunPool_WorkerCountClamping(t *testing.T) {
 	ctx := context.Background()
 
 	// workerCount <= 0 clamped to 1
-	resZero := RunPool(ctx, []string{s.URL}, 0, time.Second)
+	resZero := RunPool(ctx, []string{s.URL}, 0, time.Second, "GET")
 	if len(resZero) != 1 || resZero[0].StatusCode != http.StatusOK {
 		t.Errorf("expected success with clamped workerCount 0, got %+v", resZero)
 	}
 
 	// workerCount > len(urls) clamped to len(urls)
-	resLarge := RunPool(ctx, []string{s.URL}, 50, time.Second)
+	resLarge := RunPool(ctx, []string{s.URL}, 50, time.Second, "GET")
 	if len(resLarge) != 1 || resLarge[0].StatusCode != http.StatusOK {
 		t.Errorf("expected success with clamped workerCount 50, got %+v", resLarge)
 	}
@@ -197,7 +197,7 @@ func TestRunPool_Concurrency(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	results := RunPool(ctx, urls, 4, 2*time.Second)
+	results := RunPool(ctx, urls, 4, 2*time.Second, "GET")
 
 	if len(results) != 10 {
 		t.Fatalf("expected 10 results, got %d", len(results))
@@ -246,7 +246,7 @@ func TestRunPool_LargeResponseBody(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	results := RunPool(ctx, []string{server.URL}, 1, time.Second)
+	results := RunPool(ctx, []string{server.URL}, 1, time.Second, "GET")
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
@@ -256,5 +256,24 @@ func TestRunPool_LargeResponseBody(t *testing.T) {
 	}
 	if results[0].Error != "" {
 		t.Errorf("expected no error for large response body, got: %s", results[0].Error)
+	}
+}
+
+func TestRunPool_CustomMethod(t *testing.T) {
+	var receivedMethod string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedMethod = r.Method
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	results := RunPool(ctx, []string{server.URL}, 1, time.Second, "HEAD")
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if receivedMethod != "HEAD" {
+		t.Errorf("expected server to receive 'HEAD', got %q", receivedMethod)
 	}
 }

@@ -39,6 +39,12 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	fs.BoolVar(&showVersion, "version", false, "Display version information")
 	fs.BoolVar(&showVersion, "v", false, "Display version information (shorthand)")
 
+	fs.StringVar(&cfg.Method, "method", "GET", "HTTP method (GET|HEAD|POST|PUT|DELETE|OPTIONS)")
+	fs.StringVar(&cfg.Method, "m", "GET", "HTTP method (shorthand)")
+
+	fs.BoolVar(&cfg.FailOnError, "fail-on-error", false, "Exit with non-zero code if any target fails")
+	fs.BoolVar(&cfg.FailOnError, "fail", false, "Exit with non-zero code if any target fails (shorthand)")
+
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -71,9 +77,22 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	results := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout)
+	results := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout, cfg.Method)
+	var formatErr error
 	if cfg.OutputFormat == "json" {
-		return output.FormatJSON(stdout, results)
+		formatErr = output.FormatJSON(stdout, results)
+	} else {
+		formatErr = output.FormatTable(stdout, results)
 	}
-	return output.FormatTable(stdout, results)
+	if formatErr != nil {
+		return formatErr
+	}
+	if cfg.FailOnError {
+		for _, r := range results {
+			if r.Error != "" || r.StatusCode >= 400 {
+				return errors.New("one or more targets failed health check")
+			}
+		}
+	}
+	return nil
 }

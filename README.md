@@ -105,6 +105,12 @@ Audit large lists of targets from a text file (one URL per line, supports `#` co
 axon -i targets.txt -w 20
 ```
 
+### CI/CD Deployment Gate
+Use Axon as a blocking health verification gate in deployment pipelines (exits with code 1 if any target fails):
+```bash
+axon -fail-on-error -m HEAD https://staging.internal/healthz && ./deploy.sh
+```
+
 ### High-Throughput Fleet Audit
 Adjust concurrency and request timeouts for large fleets:
 ```bash
@@ -137,7 +143,9 @@ axon -f json https://service-a.com https://service-b.com | jq '.[] | select(.sta
 | `--workers` | `-w` | `10` | Maximum number of concurrent worker goroutines |
 | `--timeout` | `-t` | `5s` | Per-request network timeout duration |
 | `--format` | `-f` | `table` | Presentation format (`table` or `json`) |
-| `--version` | `-v` | — | Display version information (`1.0.1`) |
+| `--method` | `-m` | `GET` | HTTP probe method (`GET`, `HEAD`) |
+| `--fail-on-error` | `-fail` | `false` | Exit with non-zero status code if any probe fails |
+| `--version` | `-v` | — | Display version information (`1.0.3`) |
 | `--help` | `-h` | — | Display help information |
 
 ---

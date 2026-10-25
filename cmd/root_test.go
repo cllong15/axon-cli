@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -176,5 +177,94 @@ func TestExecute_Version_Short(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "axon version") {
 		t.Errorf("expected version output, got: %q", stdout.String())
+	}
+}
+
+func TestExecute_Method_Head(t *testing.T) {
+	var receivedMethod string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedMethod = r.Method
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-m", "HEAD", server.URL}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error executing HEAD method: %v", err)
+	}
+	if receivedMethod != "HEAD" {
+		t.Errorf("expected server to receive 'HEAD', got %q", receivedMethod)
+	}
+}
+
+func TestExecute_InvalidMethod(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-method", "BAD_METHOD", "https://example.com"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error on invalid HTTP method, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported HTTP method") {
+		t.Errorf("expected unsupported method error message, got: %v", err)
+	}
+}
+
+func TestExecute_FailOnError_AllPassing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-fail-on-error", server.URL}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("expected nil error when all targets pass, got: %v", err)
+	}
+}
+
+func TestExecute_FailOnError_WithHttpFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-fail", server.URL}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error with -fail flag when server returns 500, got nil")
+	}
+	if !strings.Contains(err.Error(), "one or more targets failed") {
+		t.Errorf("expected failure message, got: %v", err)
+	}
+	// Verify that table output was still printed to stdout before error return
+	if !strings.Contains(stdout.String(), "500") {
+		t.Errorf("expected table output in stdout before failure return, got: %s", stdout.String())
+	}
+}
+
+type errWriter struct{}
+
+func (e *errWriter) Write(p []byte) (n int, err error) {
+	return 0, errors.New("simulated output write failure")
+}
+
+func TestExecute_FormatError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stderr bytes.Buffer
+	err := Execute(context.Background(), []string{server.URL}, &errWriter{}, &stderr)
+	if err == nil {
+		t.Fatal("expected error when output writer fails, got nil")
+	}
+}
+
+func TestExecute_FailOnError_NetworkError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-fail", "http://127.0.0.1:1"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error with -fail flag on network error, got nil")
 	}
 }

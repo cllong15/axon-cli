@@ -24,6 +24,14 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected default OutputFormat to be 'table', got %q", cfg.OutputFormat)
 	}
 
+	if cfg.Method != "GET" {
+		t.Errorf("expected default Method to be 'GET', got %q", cfg.Method)
+	}
+
+	if cfg.FailOnError != false {
+		t.Errorf("expected default FailOnError to be false, got %v", cfg.FailOnError)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("expected default config to be valid, got error: %v", err)
 	}
@@ -36,22 +44,44 @@ func TestConfigValidate(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			name: "valid table format",
+			name: "valid table format and GET method",
 			config: Config{
 				WorkerCount:  5,
 				Timeout:      3 * time.Second,
 				OutputFormat: "table",
+				Method:       "GET",
 			},
 			expectErr: false,
 		},
 		{
-			name: "valid json format",
+			name: "valid json format and HEAD method",
 			config: Config{
 				WorkerCount:  1,
 				Timeout:      1 * time.Second,
 				OutputFormat: "json",
+				Method:       "HEAD",
 			},
 			expectErr: false,
+		},
+		{
+			name: "valid lowercase method normalized",
+			config: Config{
+				WorkerCount:  1,
+				Timeout:      1 * time.Second,
+				OutputFormat: "json",
+				Method:       "post",
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid http method",
+			config: Config{
+				WorkerCount:  1,
+				Timeout:      1 * time.Second,
+				OutputFormat: "json",
+				Method:       "INVALID_METHOD",
+			},
+			expectErr: true,
 		},
 		{
 			name: "zero worker count",
@@ -59,6 +89,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  0,
 				Timeout:      5 * time.Second,
 				OutputFormat: "table",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -68,6 +99,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  -2,
 				Timeout:      5 * time.Second,
 				OutputFormat: "table",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -77,6 +109,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  5,
 				Timeout:      0,
 				OutputFormat: "table",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -86,6 +119,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  5,
 				Timeout:      -1 * time.Second,
 				OutputFormat: "table",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -95,6 +129,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  5,
 				Timeout:      5 * time.Second,
 				OutputFormat: "yaml",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -104,6 +139,7 @@ func TestConfigValidate(t *testing.T) {
 				WorkerCount:  5,
 				Timeout:      5 * time.Second,
 				OutputFormat: "",
+				Method:       "GET",
 			},
 			expectErr: true,
 		},
@@ -121,4 +157,3 @@ func TestConfigValidate(t *testing.T) {
 		})
 	}
 }
-

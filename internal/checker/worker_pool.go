@@ -16,7 +16,10 @@ type CheckResult struct {
 	Error      string        `json:"error,omitempty"`
 }
 
-func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.Duration) []CheckResult {
+func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.Duration, method string) []CheckResult {
+	if method == "" {
+		method = http.MethodGet
+	}
 	if len(urls) == 0 {
 		return nil
 	}
@@ -39,7 +42,7 @@ func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.D
 			for url := range jobsChan {
 				url = NormalizeURL(url)
 				start := time.Now()
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+				req, err := http.NewRequestWithContext(ctx, method, url, nil)
 				if err != nil {
 					resultsChan <- CheckResult{URL: url,
 						Error: err.Error()}
