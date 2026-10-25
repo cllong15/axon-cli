@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var versionNum = "1.0.2"
+var versionNum = "1.0.3"
 
 func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	cfg := config.DefaultConfig()

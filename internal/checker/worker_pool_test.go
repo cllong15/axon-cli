@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -211,3 +212,49 @@ func TestRunPool_Concurrency(t *testing.T) {
 	}
 }
 
+func TestNormalizeURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "empty string", input: "", expected: ""},
+		{name: "whitespace only", input: "   ", expected: ""},
+		{name: "bare domain", input: "example.com", expected: "https://example.com"},
+		{name: "bare domain with spaces", input: "  github.com  ", expected: "https://github.com"},
+		{name: "bare IP", input: "192.168.1.1", expected: "https://192.168.1.1"},
+		{name: "already http", input: "http://localhost:8080", expected: "http://localhost:8080"},
+		{name: "already https", input: "https://api.github.com", expected: "https://api.github.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeURL(tt.input)
+			if got != tt.expected {
+				t.Errorf("NormalizeURL(%q) = %q, expected %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRunPool_LargeResponseBody(t *testing.T) {
+	// Server returns 10KB of payload, exceeding the 4KB LimitReader threshold
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(strings.Repeat("X", 10240)))
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	results := RunPool(ctx, []string{server.URL}, 1, time.Second)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK for large response body, got %d", results[0].StatusCode)
+	}
+	if results[0].Error != "" {
+		t.Errorf("expected no error for large response body, got: %s", results[0].Error)
+	}
+}

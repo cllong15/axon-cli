@@ -2,7 +2,9 @@ package checker
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +37,7 @@ func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.D
 		go func() {
 			defer wg.Done()
 			for url := range jobsChan {
+				url = NormalizeURL(url)
 				start := time.Now()
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 				if err != nil {
@@ -50,6 +53,7 @@ func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.D
 						Error:   err.Error()}
 					continue
 				}
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 				resp.Body.Close()
 				resultsChan <- CheckResult{
 					URL:        url,
@@ -73,4 +77,15 @@ func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.D
 		results = append(results, res)
 	}
 	return results
+}
+
+func NormalizeURL(raw string) string {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return ""
+	}
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		return "https://" + u
+	}
+	return u
 }
