@@ -229,9 +229,9 @@ func TestExecute_FailOnError_WithHttpFailure(t *testing.T) {
 	defer server.Close()
 
 	var stdout, stderr bytes.Buffer
-	err := Execute(context.Background(), []string{"-fail", server.URL}, &stdout, &stderr)
+	err := Execute(context.Background(), []string{"-l", server.URL}, &stdout, &stderr)
 	if err == nil {
-		t.Fatal("expected error with -fail flag when server returns 500, got nil")
+		t.Fatal("expected error with -l flag when server returns 500, got nil")
 	}
 	if !strings.Contains(err.Error(), "one or more targets failed") {
 		t.Errorf("expected failure message, got: %v", err)
@@ -263,8 +263,70 @@ func TestExecute_FormatError(t *testing.T) {
 
 func TestExecute_FailOnError_NetworkError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	err := Execute(context.Background(), []string{"-fail", "http://127.0.0.1:1"}, &stdout, &stderr)
+	err := Execute(context.Background(), []string{"-l", "http://127.0.0.1:1"}, &stdout, &stderr)
 	if err == nil {
-		t.Fatal("expected error with -fail flag on network error, got nil")
+		t.Fatal("expected error with -l flag on network error, got nil")
+	}
+}
+
+func TestExecute_OnlyErrors_FiltersSuccess(t *testing.T) {
+	sPass := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer sPass.Close()
+
+	sFail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer sFail.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-only-errors", sPass.URL, sFail.URL}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error with -only-errors: %v", err)
+	}
+
+	out := stdout.String()
+	if strings.Contains(out, sPass.URL) {
+		t.Errorf("expected passing URL to be filtered out, got:\n%s", out)
+	}
+	if !strings.Contains(out, sFail.URL) {
+		t.Errorf("expected failing URL to be present, got:\n%s", out)
+	}
+}
+
+func TestExecute_Threshold_SlowMarker(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-T", "10ms", server.URL}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error with threshold flag: %v", err)
+	}
+
+	out := stdout.String()
+	if !strings.Contains(out, "[slow]") {
+		t.Errorf("expected [slow] tag in output for target exceeding threshold, got:\n%s", out)
+	}
+}
+
+func TestExecute_FailOnError_WithSlowTarget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"--fail-on-error", "-threshold", "10ms", server.URL}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when target exceeds latency threshold with --fail-on-error, got nil")
+	}
+	if !strings.Contains(err.Error(), "one or more targets failed") {
+		t.Errorf("expected failure message, got: %v", err)
 	}
 }

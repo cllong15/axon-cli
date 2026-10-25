@@ -140,9 +140,29 @@ func TestFormatTable(t *testing.T) {
 		}
 
 		// Check summary line
-		expectedSummary := "Total: 2 | Passed: 1 | Failed: 1 | Avg Latency: 80ms"
+		expectedSummary := "Total: 2 | Passed: 1 | Failed: 1 | Slow: 0 | Avg Latency: 80ms"
 		if !strings.Contains(out, expectedSummary) {
 			t.Errorf("expected summary line %q in output, got:\n%s", expectedSummary, out)
+		}
+	})
+
+	t.Run("results with slow markers", func(t *testing.T) {
+		results := []checker.CheckResult{
+			{URL: "https://api.github.com", StatusCode: 200, Latency: 300 * time.Millisecond, Slow: true},
+		}
+
+		var buf bytes.Buffer
+		err := FormatTable(&buf, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		out := buf.String()
+		if !strings.Contains(out, "[slow]") {
+			t.Errorf("expected [slow] marker in output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "Slow: 1") {
+			t.Errorf("expected 'Slow: 1' in summary footer, got:\n%s", out)
 		}
 	})
 

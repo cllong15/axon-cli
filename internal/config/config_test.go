@@ -32,6 +32,14 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected default FailOnError to be false, got %v", cfg.FailOnError)
 	}
 
+	if cfg.OnlyErrors != false {
+		t.Errorf("expected default OnlyErrors to be false, got %v", cfg.OnlyErrors)
+	}
+
+	if cfg.Threshold != 0 {
+		t.Errorf("expected default Threshold to be 0, got %v", cfg.Threshold)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("expected default config to be valid, got error: %v", err)
 	}
@@ -80,6 +88,17 @@ func TestConfigValidate(t *testing.T) {
 				Timeout:      1 * time.Second,
 				OutputFormat: "json",
 				Method:       "INVALID_METHOD",
+			},
+			expectErr: true,
+		},
+		{
+			name: "negative threshold",
+			config: Config{
+				WorkerCount:  5,
+				Timeout:      5 * time.Second,
+				OutputFormat: "table",
+				Method:       "GET",
+				Threshold:    -100 * time.Millisecond,
 			},
 			expectErr: true,
 		},

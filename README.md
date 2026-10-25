@@ -144,7 +144,9 @@ axon -f json https://service-a.com https://service-b.com | jq '.[] | select(.sta
 | `--timeout` | `-t` | `5s` | Per-request network timeout duration |
 | `--format` | `-f` | `table` | Presentation format (`table` or `json`) |
 | `--method` | `-m` | `GET` | HTTP probe method (`GET`, `HEAD`) |
-| `--fail-on-error` | `-fail` | `false` | Exit with non-zero status code if any probe fails |
+| `--threshold` | `-T` | `0s` | Latency SLA alert threshold duration (e.g. `250ms`) |
+| `--only-errors` | `-e` | `false` | Filter out successful probes and display only anomalies |
+| `--fail-on-error` | `-l` | `false` | Exit with non-zero status code if any probe fails |
 | `--version` | `-v` | — | Display version information (`1.0.3`) |
 | `--help` | `-h` | — | Display help information |
 

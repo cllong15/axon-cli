@@ -43,7 +43,13 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	fs.StringVar(&cfg.Method, "m", "GET", "HTTP method (shorthand)")
 
 	fs.BoolVar(&cfg.FailOnError, "fail-on-error", false, "Exit with non-zero code if any target fails")
-	fs.BoolVar(&cfg.FailOnError, "fail", false, "Exit with non-zero code if any target fails (shorthand)")
+	fs.BoolVar(&cfg.FailOnError, "l", false, "Exit with non-zero code if any target fails (shorthand)")
+
+	fs.DurationVar(&cfg.Threshold, "threshold", 0*time.Millisecond, "threshold for slow latency in ms")
+	fs.DurationVar(&cfg.Threshold, "T", 0*time.Millisecond, "threshold for slow latency in ms(shorthand)")
+
+	fs.BoolVar(&cfg.OnlyErrors, "only-errors", false, "only shows statuscodes > 400")
+	fs.BoolVar(&cfg.OnlyErrors, "e", false, "only shows statuscodes > 400 (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -77,8 +83,17 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	results := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout, cfg.Method)
+	raw := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout, cfg.Method)
+	var results []checker.CheckResult
 	var formatErr error
+	for _, r := range raw {
+		if cfg.Threshold > 0 && cfg.Threshold < r.Latency {
+			r.Slow = true
+		}
+		if !cfg.OnlyErrors || r.Error != "" || r.StatusCode >= 400 || r.Slow {
+			results = append(results, r)
+		}
+	}
 	if cfg.OutputFormat == "json" {
 		formatErr = output.FormatJSON(stdout, results)
 	} else {
@@ -89,7 +104,7 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	}
 	if cfg.FailOnError {
 		for _, r := range results {
-			if r.Error != "" || r.StatusCode >= 400 {
+			if r.Error != "" || r.StatusCode >= 400 || r.Slow {
 				return errors.New("one or more targets failed health check")
 			}
 		}

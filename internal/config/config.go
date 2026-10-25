@@ -13,6 +13,8 @@ type Config struct {
 	OutputFormat string        `mapstructure:"format"`
 	Method       string        `mapstructure:"method"`
 	FailOnError  bool          `mapstructure:"fail_on_error"`
+	OnlyErrors   bool          `mapstructure:"only_errors"`
+	Threshold    time.Duration `mapstructure:"threshold"`
 }
 
 func DefaultConfig() *Config {
@@ -27,6 +29,9 @@ func DefaultConfig() *Config {
 }
 
 func (c *Config) Validate() error {
+	if c.Threshold < 0 {
+		return errors.New("threshold must be positive")
+	}
 	if c.WorkerCount <= 0 {
 		return errors.New("worker count must be greater than 0")
 	}

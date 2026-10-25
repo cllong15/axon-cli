@@ -14,6 +14,7 @@ type CheckResult struct {
 	StatusCode int           `json:"status_code"`
 	Latency    time.Duration `json:"latency"`
 	Error      string        `json:"error,omitempty"`
+	Slow       bool          `json:"slow,omitempty"`
 }
 
 func RunPool(ctx context.Context, urls []string, workerCount int, timeout time.Duration, method string) []CheckResult {
