@@ -25,8 +25,8 @@ Axon utilizes an inside-out clean architecture with a fixed-size **worker pool**
 ```mermaid
 flowchart TD
     CLI["CLI Invocation (Flags & URLs)"] --> Main["main.go (OS Signal Trap)"]
-    Main --> Cobra["cmd/root.go (Cobra Router)"]
-    Cobra --> Config["internal/config (Validation)"]
+    Main --> CLI["cmd/root.go (CLI Flag Router)"]
+    CLI --> Config["internal/config (Validation)"]
     
     subgraph Engine ["internal/checker (Concurrency Engine)"]
         Jobs["Buffered Jobs Channel"]
@@ -172,7 +172,7 @@ axon-cli/
 │       ├── ci.yml              # Automated testing, static analysis, and build verification
 │       └── release.yml         # Automated multi-platform compilation on tag push
 ├── cmd/
-│   ├── root.go                 # Cobra command routing and flag binding
+│   ├── root.go                 # Standard library flag routing and execution pipeline
 │   └── root_test.go            # CLI integration tests
 ├── internal/
 │   ├── checker/

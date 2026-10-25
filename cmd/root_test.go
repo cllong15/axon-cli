@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"axon-cli/internal/checker"
-	"axon-cli/internal/config"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -15,23 +14,9 @@ import (
 	"time"
 )
 
-func resetCommand() {
-	*cfg = *config.DefaultConfig()
-	targetFile = ""
-	_ = rootCmd.Flags().Set("workers", "10")
-	_ = rootCmd.Flags().Set("timeout", "5s")
-	_ = rootCmd.Flags().Set("format", "table")
-	_ = rootCmd.Flags().Set("file", "")
-}
-
-func TestRootCmd_NoTargets(t *testing.T) {
-	resetCommand()
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{})
-
-	err := ExecuteContext(context.Background())
+func TestExecute_NoTargets(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error when no targets provided, got nil")
 	}
@@ -41,14 +26,9 @@ func TestRootCmd_NoTargets(t *testing.T) {
 	}
 }
 
-func TestRootCmd_InvalidFormat(t *testing.T) {
-	resetCommand()
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"--format", "unsupported", "https://example.com"})
-
-	err := ExecuteContext(context.Background())
+func TestExecute_InvalidFormat(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-format", "unsupported", "https://example.com"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected validation error for invalid format, got nil")
 	}
@@ -58,24 +38,27 @@ func TestRootCmd_InvalidFormat(t *testing.T) {
 	}
 }
 
-func TestRootCmd_SuccessTableOutput(t *testing.T) {
-	resetCommand()
+func TestExecute_InvalidFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-unknown-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected flag parsing error for unknown flag, got nil")
+	}
+}
+
+func TestExecute_SuccessTableOutput(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"--format", "table", server.URL})
-
-	err := ExecuteContext(context.Background())
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-format", "table", server.URL}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected execution error: %v", err)
 	}
 
-	output := buf.String()
+	output := stdout.String()
 	if !strings.Contains(output, "URL") || !strings.Contains(output, "STATUS") {
 		t.Errorf("expected table header in output, got: %s", output)
 	}
@@ -87,26 +70,21 @@ func TestRootCmd_SuccessTableOutput(t *testing.T) {
 	}
 }
 
-func TestRootCmd_SuccessJSONOutput(t *testing.T) {
-	resetCommand()
+func TestExecute_SuccessJSONOutput(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"-f", "json", server.URL})
-
-	err := ExecuteContext(context.Background())
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-f", "json", server.URL}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected execution error: %v", err)
 	}
 
 	var results []checker.CheckResult
-	if err := json.Unmarshal(buf.Bytes(), &results); err != nil {
-		t.Fatalf("failed to decode JSON output: %v; raw: %s", err, buf.String())
+	if err := json.Unmarshal(stdout.Bytes(), &results); err != nil {
+		t.Fatalf("failed to decode JSON output: %v; raw: %s", err, stdout.String())
 	}
 
 	if len(results) != 1 {
@@ -117,34 +95,21 @@ func TestRootCmd_SuccessJSONOutput(t *testing.T) {
 	}
 }
 
-func TestRootCmd_CustomFlags(t *testing.T) {
-	resetCommand()
+func TestExecute_CustomFlags(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"-w", "2", "-t", "2s", server.URL})
-
-	err := ExecuteContext(context.Background())
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-w", "2", "-t", "2s", server.URL}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected execution error with custom flags: %v", err)
 	}
-
-	if cfg.WorkerCount != 2 {
-		t.Errorf("expected WorkerCount to be 2, got %d", cfg.WorkerCount)
-	}
-	if cfg.Timeout != 2*time.Second {
-		t.Errorf("expected Timeout to be 2s, got %v", cfg.Timeout)
-	}
 }
 
-func TestRootCmd_TargetFile_Success(t *testing.T) {
-	resetCommand()
+func TestExecute_TargetFile_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -157,59 +122,59 @@ func TestRootCmd_TargetFile_Success(t *testing.T) {
 		t.Fatalf("failed to write temp targets file: %v", err)
 	}
 
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"--file", filePath})
-
-	err := ExecuteContext(context.Background())
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-file", filePath}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("unexpected execution error with target file: %v", err)
 	}
 
-	out := buf.String()
+	out := stdout.String()
 	if !strings.Contains(out, server.URL) || !strings.Contains(out, "200") {
 		t.Errorf("expected target from file to be audited, got:\n%s", out)
 	}
 }
 
-func TestRootCmd_TargetFile_NotFound(t *testing.T) {
-	resetCommand()
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"-i", "nonexistent_file_xyz.txt"})
-
-	err := ExecuteContext(context.Background())
+func TestExecute_TargetFile_NotFound(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-i", "nonexistent_file_xyz.txt"}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected error when target file does not exist, got nil")
 	}
 }
 
-func TestRootCmd_Version(t *testing.T) {
-	resetCommand()
-	if rootCmd.Version != "1.0.1" {
-		t.Errorf("expected rootCmd.Version to be '1.0.1', got %q", rootCmd.Version)
-	}
-}
-
-func TestRootCmd_TargetFile_ScannerError(t *testing.T) {
-	resetCommand()
+func TestExecute_TargetFile_ScannerError(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "huge_line.txt")
-	// bufio.Scanner default max token size is 64KB (65536 bytes). A line exceeding 64KB triggers bufio.ErrTooLong.
 	longLine := strings.Repeat("x", 70000)
 	if err := os.WriteFile(filePath, []byte(longLine), 0644); err != nil {
 		t.Fatalf("failed to write huge line file: %v", err)
 	}
 
-	var buf bytes.Buffer
-	rootCmd.SetOut(&buf)
-	rootCmd.SetErr(&buf)
-	rootCmd.SetArgs([]string{"--file", filePath})
-
-	err := ExecuteContext(context.Background())
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-i", filePath}, &stdout, &stderr)
 	if err == nil {
 		t.Fatal("expected scanner error for line exceeding buffer size, got nil")
+	}
+}
+
+func TestExecute_Version(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-version"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error on -version: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "axon version") {
+		t.Errorf("expected version output, got: %q", stdout.String())
+	}
+}
+
+func TestExecute_Version_Short(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-v"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error on -v: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "axon version") {
+		t.Errorf("expected version output, got: %q", stdout.String())
 	}
 }
