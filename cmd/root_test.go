@@ -330,3 +330,30 @@ func TestExecute_FailOnError_WithSlowTarget(t *testing.T) {
 		t.Errorf("expected failure message, got: %v", err)
 	}
 }
+
+func TestExecute_ExpandTargets_ExceedsLimit(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-max", "2", "192.168.1.0/28:80"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error when targets expand beyond max limit, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds max targets limit") {
+		t.Errorf("expected limit error message, got: %v", err)
+	}
+}
+
+func TestExecute_Option4_Flags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-num", "-y", "-b", "100", server.URL}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error with Option 4 flags: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "200") {
+		t.Errorf("expected 200 in output, got: %s", stdout.String())
+	}
+}

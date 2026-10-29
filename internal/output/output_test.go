@@ -2,6 +2,7 @@ package output
 
 import (
 	"axon-cli/internal/checker"
+	"axon-cli/internal/config"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -85,9 +86,11 @@ func TestFormatJSON(t *testing.T) {
 }
 
 func TestFormatTable(t *testing.T) {
+	cfg := config.DefaultConfig()
+
 	t.Run("empty results", func(t *testing.T) {
 		var buf bytes.Buffer
-		err := FormatTable(&buf, []checker.CheckResult{})
+		err := FormatTable(&buf, cfg, []checker.CheckResult{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -117,7 +120,7 @@ func TestFormatTable(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := FormatTable(&buf, results)
+		err := FormatTable(&buf, cfg, results)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -152,7 +155,7 @@ func TestFormatTable(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := FormatTable(&buf, results)
+		err := FormatTable(&buf, cfg, results)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -166,11 +169,55 @@ func TestFormatTable(t *testing.T) {
 		}
 	})
 
+	t.Run("tcp open and closed statuses", func(t *testing.T) {
+		results := []checker.CheckResult{
+			{URL: "10.0.0.1:5432", Protocol: "tcp", StatusCode: 200, Latency: 25 * time.Millisecond},
+			{URL: "10.0.0.2:5432", Protocol: "tcp", StatusCode: 0, Latency: 10 * time.Millisecond, Error: "connection refused"},
+		}
+
+		var buf bytes.Buffer
+		err := FormatTable(&buf, cfg, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		out := buf.String()
+		if !strings.Contains(out, "OPEN") {
+			t.Errorf("expected OPEN status for healthy TCP socket, got:\n%s", out)
+		}
+		if !strings.Contains(out, "CLOSED") {
+			t.Errorf("expected CLOSED status for failed TCP socket, got:\n%s", out)
+		}
+	})
+
+	t.Run("tcp numeric status override", func(t *testing.T) {
+		numCfg := config.DefaultConfig()
+		numCfg.NumericStatus = true
+
+		results := []checker.CheckResult{
+			{URL: "10.0.0.1:5432", Protocol: "tcp", StatusCode: 200, Latency: 25 * time.Millisecond},
+		}
+
+		var buf bytes.Buffer
+		err := FormatTable(&buf, numCfg, results)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		out := buf.String()
+		if !strings.Contains(out, "200") {
+			t.Errorf("expected 200 numeric status code, got:\n%s", out)
+		}
+		if strings.Contains(out, "OPEN") {
+			t.Errorf("did not expect OPEN status with NumericStatus=true, got:\n%s", out)
+		}
+	})
+
 	t.Run("write error propagation", func(t *testing.T) {
 		results := []checker.CheckResult{
 			{URL: "https://example.com", StatusCode: 200},
 		}
-		err := FormatTable(&errWriter{}, results)
+		err := FormatTable(&errWriter{}, cfg, results)
 		if err == nil {
 			t.Error("expected error from errWriter, got nil")
 		}

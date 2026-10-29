@@ -2,6 +2,7 @@ package checker
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -276,4 +277,203 @@ func TestRunPool_CustomMethod(t *testing.T) {
 	if receivedMethod != "HEAD" {
 		t.Errorf("expected server to receive 'HEAD', got %q", receivedMethod)
 	}
+}
+
+func TestDetectProtocol(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		wantProtocol string
+		wantAddr     string
+	}{
+		{
+			name:         "http scheme",
+			input:        "http://example.com",
+			wantProtocol: "http",
+			wantAddr:     "http://example.com",
+		},
+		{
+			name:         "https scheme",
+			input:        "https://example.com:8443",
+			wantProtocol: "http",
+			wantAddr:     "https://example.com:8443",
+		},
+		{
+			name:         "tcp scheme",
+			input:        "tcp://127.0.0.1:8080",
+			wantProtocol: "tcp",
+			wantAddr:     "127.0.0.1:8080",
+		},
+		{
+			name:         "bare host and port",
+			input:        "127.0.0.1:9092",
+			wantProtocol: "tcp",
+			wantAddr:     "127.0.0.1:9092",
+		},
+		{
+			name:         "bare ipv6 and port",
+			input:        "[::1]:5432",
+			wantProtocol: "tcp",
+			wantAddr:     "[::1]:5432",
+		},
+		{
+			name:         "bare domain defaults to https",
+			input:        "google.com",
+			wantProtocol: "http",
+			wantAddr:     "https://google.com",
+		},
+		{
+			name:         "domain with path containing colon",
+			input:        "example.com/api:v1",
+			wantProtocol: "http",
+			wantAddr:     "https://example.com/api:v1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proto, addr := DetectProtocol(tt.input)
+			if proto != tt.wantProtocol {
+				t.Errorf("DetectProtocol(%q) proto = %q, want %q", tt.input, proto, tt.wantProtocol)
+			}
+			if addr != tt.wantAddr {
+				t.Errorf("DetectProtocol(%q) addr = %q, want %q", tt.input, addr, tt.wantAddr)
+			}
+		})
+	}
+}
+
+func TestRunPool_TCP_Success(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start mock TCP listener: %v", err)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	ctx := context.Background()
+	results := RunPool(ctx, []string{ln.Addr().String(), "tcp://" + ln.Addr().String()}, 2, time.Second, "GET")
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	for _, res := range results {
+		if res.Protocol != "tcp" {
+			t.Errorf("expected protocol 'tcp', got %q", res.Protocol)
+		}
+		if res.Error != "" {
+			t.Errorf("unexpected error for TCP target: %s", res.Error)
+		}
+	}
+}
+
+func TestRunPool_TCP_Failure(t *testing.T) {
+	ctx := context.Background()
+	results := RunPool(ctx, []string{"tcp://127.0.0.1:1"}, 1, 500*time.Millisecond, "GET")
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Protocol != "tcp" {
+		t.Errorf("expected protocol 'tcp', got %q", results[0].Protocol)
+	}
+	if results[0].Error == "" {
+		t.Errorf("expected error for closed TCP port, got nil")
+	}
+}
+
+func TestExpandTargets(t *testing.T) {
+	t.Run("IPv4 CIDR expansion", func(t *testing.T) {
+		res, err := ExpandTargets([]string{"192.168.1.0/30:80"}, 10)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []string{
+			"192.168.1.0:80",
+			"192.168.1.1:80",
+			"192.168.1.2:80",
+			"192.168.1.3:80",
+		}
+		if len(res) != len(expected) {
+			t.Fatalf("expected %d targets, got %d: %v", len(expected), len(res), res)
+		}
+		for i, v := range expected {
+			if res[i] != v {
+				t.Errorf("index %d: expected %s, got %s", i, v, res[i])
+			}
+		}
+	})
+
+	t.Run("IPv6 bracketed CIDR expansion", func(t *testing.T) {
+		res, err := ExpandTargets([]string{"[2001:db8::/126]:22"}, 10)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []string{
+			"[2001:db8::]:22",
+			"[2001:db8::1]:22",
+			"[2001:db8::2]:22",
+			"[2001:db8::3]:22",
+		}
+		if len(res) != len(expected) {
+			t.Fatalf("expected %d targets, got %d: %v", len(expected), len(res), res)
+		}
+		for i, v := range expected {
+			if res[i] != v {
+				t.Errorf("index %d: expected %s, got %s", i, v, res[i])
+			}
+		}
+	})
+
+	t.Run("passthrough non-CIDR targets", func(t *testing.T) {
+		targets := []string{
+			"https://api.example.com",
+			"10.0.0.1:5432",
+			"google.com",
+			"192.168.1.0/24",
+			"example.com:8080/healthz",
+		}
+		res, err := ExpandTargets(targets, 10)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(res) != len(targets) {
+			t.Fatalf("expected %d targets, got %d", len(targets), len(res))
+		}
+		for i, v := range targets {
+			if res[i] != v {
+				t.Errorf("index %d: expected %s, got %s", i, v, res[i])
+			}
+		}
+	})
+
+	t.Run("exceeds max targets limit", func(t *testing.T) {
+		_, err := ExpandTargets([]string{"192.168.1.0/28:80"}, 4) // /28 is 16 IPs, limit is 4
+		if err == nil {
+			t.Fatal("expected error when CIDR exceeds maxTargets, got nil")
+		}
+		if !strings.Contains(err.Error(), "exceeds max targets limit") {
+			t.Errorf("expected max targets error message, got: %v", err)
+		}
+	})
+
+	t.Run("invalid CIDR syntax passes through as normal target", func(t *testing.T) {
+		res, err := ExpandTargets([]string{"invalid/cidr/path:80"}, 10)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(res) != 1 || res[0] != "invalid/cidr/path:80" {
+			t.Errorf("expected passthrough for invalid CIDR, got %v", res)
+		}
+	})
 }

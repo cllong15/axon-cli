@@ -2,15 +2,16 @@ package output
 
 import (
 	"axon-cli/internal/checker"
+	"axon-cli/internal/config"
 	"fmt"
 	"io"
 	"text/tabwriter"
 	"time"
 )
 
-func FormatTable(w io.Writer, results []checker.CheckResult) error {
+func FormatTable(w io.Writer, cfg *config.Config, results []checker.CheckResult) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(tw, "URL\tSTATUS\tLATENCY\tERROR")
+	fmt.Fprintln(tw, "URL\tPROTOCOL\tSTATUS\tLATENCY\tERROR")
 	var totalLatency time.Duration
 	var passed = 0
 	var slow = 0
@@ -30,9 +31,17 @@ func FormatTable(w io.Writer, results []checker.CheckResult) error {
 			status = status + "[slow]"
 			slow++
 		}
+		if r.Protocol == "tcp" && !cfg.NumericStatus {
+			if r.Error != "" {
+				status = "CLOSED"
+			} else {
+				status = "OPEN"
+			}
+		}
 		fmt.Fprintf(tw,
-			"%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%v\t%s\t%s\n",
 			r.URL,
+			r.Protocol,
 			status,
 			r.Latency.Round(time.Millisecond),
 			r.Error)

@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var versionNum = "1.0.3"
+var versionNum = "1.1.0"
 
 func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	cfg := config.DefaultConfig()
@@ -24,32 +24,45 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 
 	fs := flag.NewFlagSet("axon", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.IntVar(&cfg.WorkerCount, "workers", 10, "Number of concurrent workers")
+
+	fs.IntVar(&cfg.WorkerCount, "workers", 10, "Number of concurrent workers (default: 10)")
 	fs.IntVar(&cfg.WorkerCount, "w", 10, "number of concurrent workers (shorthand)")
 
-	fs.DurationVar(&cfg.Timeout, "timeout", 5*time.Second, "Request timeout")
+	fs.DurationVar(&cfg.Timeout, "timeout", 5*time.Second, "Request timeout (default: 5s)")
 	fs.DurationVar(&cfg.Timeout, "t", 5*time.Second, "Request timeout (shorthand)")
 
-	fs.StringVar(&cfg.OutputFormat, "format", "table", "Output format (table|json)")
+	fs.StringVar(&cfg.OutputFormat, "format", "table", "Output format (table|json - default: json)")
 	fs.StringVar(&cfg.OutputFormat, "f", "table", "Output format (table|json)")
 
-	fs.StringVar(&targetFile, "file", "", "Path to file containing URLs")
-	fs.StringVar(&targetFile, "i", "", "Path to file containing URLs")
+	fs.StringVar(&targetFile, "file", "", "Path to file containing URLs (default: \"\")")
+	fs.StringVar(&targetFile, "i", "", "Path to file containing URLs (shorthand)")
 
-	fs.BoolVar(&showVersion, "version", false, "Display version information")
+	fs.BoolVar(&showVersion, "version", false, "Display version information (default: false)")
 	fs.BoolVar(&showVersion, "v", false, "Display version information (shorthand)")
 
-	fs.StringVar(&cfg.Method, "method", "GET", "HTTP method (GET|HEAD|POST|PUT|DELETE|OPTIONS)")
+	fs.StringVar(&cfg.Method, "method", "GET", "HTTP method (default: GET)(GET|HEAD|POST|PUT|DELETE|OPTIONS)")
 	fs.StringVar(&cfg.Method, "m", "GET", "HTTP method (shorthand)")
 
-	fs.BoolVar(&cfg.FailOnError, "fail-on-error", false, "Exit with non-zero code if any target fails")
+	fs.BoolVar(&cfg.FailOnError, "fail-on-error", false, "Exit with non-zero code if any target fails (default: false)")
 	fs.BoolVar(&cfg.FailOnError, "l", false, "Exit with non-zero code if any target fails (shorthand)")
 
-	fs.DurationVar(&cfg.Threshold, "threshold", 0*time.Millisecond, "threshold for slow latency in ms")
+	fs.BoolVar(&cfg.OnlyErrors, "only-errors", false, "display only failed or anomalous targets (default: false)")
+	fs.BoolVar(&cfg.OnlyErrors, "e", false, "display only failed or anomalous targets (shorthand)")
+
+	fs.DurationVar(&cfg.Threshold, "threshold", 0*time.Millisecond, "threshold for slow latency in ms (default: 0ms)")
 	fs.DurationVar(&cfg.Threshold, "T", 0*time.Millisecond, "threshold for slow latency in ms(shorthand)")
 
-	fs.BoolVar(&cfg.OnlyErrors, "only-errors", false, "only shows statuscodes > 400")
-	fs.BoolVar(&cfg.OnlyErrors, "e", false, "only shows statuscodes > 400 (shorthand)")
+	fs.BoolVar(&cfg.NumericStatus, "numeric-Status", false, "display http status codes for tcp connections (default: false)")
+	fs.BoolVar(&cfg.NumericStatus, "num", false, "display http status codes for tcp connections (shorthand)")
+
+	fs.IntVar(&cfg.MaxTargets, "maxTargets", 1024, "Maximum targets: default 1024")
+	fs.IntVar(&cfg.MaxTargets, "max", 1024, "Maximum targets: default 1024 (shorthand)")
+
+	fs.BoolVar(&cfg.AutoConfirm, "autoConfirm", false, "Auto confirm any prompts (default: false)")
+	fs.BoolVar(&cfg.AutoConfirm, "y", false, "Auto confirm any prompts (shorthand)")
+
+	fs.IntVar(&cfg.BatchSize, "batchSize", 256, "size of connection batches if any (default: 256)")
+	fs.IntVar(&cfg.BatchSize, "b", 256, "size of connection batches if any (shorthand)")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -83,6 +96,11 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+	exptargs, err := checker.ExpandTargets(cfg.Targets, cfg.MaxTargets)
+	if err != nil {
+		return err
+	}
+	cfg.Targets = exptargs
 	raw := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout, cfg.Method)
 	var results []checker.CheckResult
 	var formatErr error
@@ -97,7 +115,7 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	if cfg.OutputFormat == "json" {
 		formatErr = output.FormatJSON(stdout, results)
 	} else {
-		formatErr = output.FormatTable(stdout, results)
+		formatErr = output.FormatTable(stdout, cfg, results)
 	}
 	if formatErr != nil {
 		return formatErr

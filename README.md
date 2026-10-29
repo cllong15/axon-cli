@@ -91,12 +91,12 @@ axon https://api.github.com https://httpbin.org/status/200 https://httpbin.org/s
 
 **Terminal Output:**
 ```text
-URL                                STATUS   LATENCY   ERROR
-https://api.github.com             200      142ms     -
-https://httpbin.org/status/200     200      284ms     -
-https://httpbin.org/status/503     503      310ms     -
+URL                                PROTOCOL   STATUS   LATENCY   ERROR
+https://api.github.com             http       200      142ms     -
+https://httpbin.org/status/200     http       200      284ms     -
+https://httpbin.org/status/503     http       503      310ms     -
 
-Total: 3 | Passed: 2 | Failed: 1 | Avg Latency: 245ms
+Total: 3 | Passed: 2 | Failed: 1 | Slow: 0 | Avg Latency: 245ms
 ```
 
 ### File-Based Targets
@@ -109,6 +109,16 @@ axon -i targets.txt -w 20
 Use Axon as a blocking health verification gate in deployment pipelines (exits with code 1 if any target fails):
 ```bash
 axon -fail-on-error -m HEAD https://staging.internal/healthz && ./deploy.sh
+```
+
+### Layer 4 TCP Port Audits & CIDR Subnet Sweeps
+Audit raw TCP services (databases, cache, SSH) or sweep entire IPv4/IPv6 subnets with bounded concurrency:
+```bash
+# Audit raw TCP ports (defaults to OPEN/CLOSED status)
+axon 10.0.0.5:5432 tcp://redis.internal:6379
+
+# Sweep an entire IPv4 or IPv6 subnet
+axon 192.168.1.0/28:22 [2001:db8::/126]:80 -max 1024 -y
 ```
 
 ### High-Throughput Fleet Audit
@@ -147,6 +157,10 @@ axon -f json https://service-a.com https://service-b.com | jq '.[] | select(.sta
 | `--threshold` | `-T` | `0s` | Latency SLA alert threshold duration (e.g. `250ms`) |
 | `--only-errors` | `-e` | `false` | Filter out successful probes and display only anomalies |
 | `--fail-on-error` | `-l` | `false` | Exit with non-zero status code if any probe fails |
+| `--numeric-Status` | `-num` | `false` | Display HTTP status codes for TCP connections |
+| `--maxTargets` | `-max` | `1024` | Maximum allowable targets limit (default: 1024) |
+| `--autoConfirm` | `-y` | `false` | Auto confirm large target sweeps |
+| `--batchSize` | `-b` | `256` | Batch size for target sweeps (default: 256) |
 | `--version` | `-v` | — | Display version information (`1.0.3`) |
 | `--help` | `-h` | — | Display help information |
 

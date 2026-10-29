@@ -7,30 +7,46 @@ import (
 )
 
 type Config struct {
-	Targets      []string      `mapstructure:"targets"`
-	WorkerCount  int           `mapstructure:"workers"`
-	Timeout      time.Duration `mapstructure:"timeout"`
-	OutputFormat string        `mapstructure:"format"`
-	Method       string        `mapstructure:"method"`
-	FailOnError  bool          `mapstructure:"fail_on_error"`
-	OnlyErrors   bool          `mapstructure:"only_errors"`
-	Threshold    time.Duration `mapstructure:"threshold"`
+	Targets       []string      `mapstructure:"targets"`
+	WorkerCount   int           `mapstructure:"workers"`
+	Timeout       time.Duration `mapstructure:"timeout"`
+	OutputFormat  string        `mapstructure:"format"`
+	Method        string        `mapstructure:"method"`
+	FailOnError   bool          `mapstructure:"fail_on_error"`
+	OnlyErrors    bool          `mapstructure:"only_errors"`
+	Threshold     time.Duration `mapstructure:"threshold"`
+	NumericStatus bool          `mapstructure:"numeric_status"`
+	MaxTargets    int           `mapstructure:"max_targets"`
+	AutoConfirm   bool          `mapstructure:"auto_confirm"`
+	BatchSize     int           `mapstructure:"batch_size"`
 }
 
 func DefaultConfig() *Config {
 	c := &Config{
-		WorkerCount:  10,
-		Timeout:      5 * time.Second,
-		OutputFormat: "table",
-		Method:       "GET",
-		FailOnError:  false,
+		WorkerCount:   10,
+		Timeout:       5 * time.Second,
+		OutputFormat:  "table",
+		Method:        "GET",
+		FailOnError:   false,
+		OnlyErrors:    false,
+		Threshold:     0 * time.Millisecond,
+		NumericStatus: false,
+		MaxTargets:    1024,
+		AutoConfirm:   false,
+		BatchSize:     256,
 	}
 	return c
 }
 
 func (c *Config) Validate() error {
+	if c.BatchSize <= 0 {
+		return errors.New("batch size must be greater than 0")
+	}
+	if c.MaxTargets < 0 {
+		return errors.New("max targets cannot be negative")
+	}
 	if c.Threshold < 0 {
-		return errors.New("threshold must be positive")
+		return errors.New("threshold cannot be negative")
 	}
 	if c.WorkerCount <= 0 {
 		return errors.New("worker count must be greater than 0")
