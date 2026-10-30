@@ -24,19 +24,19 @@ func FormatTable(w io.Writer, cfg *config.Config, results []checker.CheckResult)
 		if r.StatusCode == 0 {
 			status = "ERR"
 		}
-		if r.Slow {
-			if status != "" {
-				status = status + " "
-			}
-			status = status + "[slow]"
-			slow++
-		}
 		if r.Protocol == "tcp" && !cfg.NumericStatus {
 			if r.Error != "" {
 				status = "CLOSED"
 			} else {
 				status = "OPEN"
 			}
+		}
+		if r.Slow {
+			if status != "" {
+				status = status + " "
+			}
+			status = status + "[slow]"
+			slow++
 		}
 		fmt.Fprintf(tw,
 			"%s\t%s\t%v\t%s\t%s\n",

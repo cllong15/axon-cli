@@ -171,7 +171,7 @@ func TestFormatTable(t *testing.T) {
 
 	t.Run("tcp open and closed statuses", func(t *testing.T) {
 		results := []checker.CheckResult{
-			{URL: "10.0.0.1:5432", Protocol: "tcp", StatusCode: 200, Latency: 25 * time.Millisecond},
+			{URL: "10.0.0.1:5432", Protocol: "tcp", StatusCode: 200, Latency: 25 * time.Millisecond, Slow: true},
 			{URL: "10.0.0.2:5432", Protocol: "tcp", StatusCode: 0, Latency: 10 * time.Millisecond, Error: "connection refused"},
 		}
 
@@ -182,8 +182,8 @@ func TestFormatTable(t *testing.T) {
 		}
 
 		out := buf.String()
-		if !strings.Contains(out, "OPEN") {
-			t.Errorf("expected OPEN status for healthy TCP socket, got:\n%s", out)
+		if !strings.Contains(out, "OPEN [slow]") {
+			t.Errorf("expected 'OPEN [slow]' status for slow healthy TCP socket, got:\n%s", out)
 		}
 		if !strings.Contains(out, "CLOSED") {
 			t.Errorf("expected CLOSED status for failed TCP socket, got:\n%s", out)

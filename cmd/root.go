@@ -15,7 +15,8 @@ import (
 	"time"
 )
 
-var versionNum = "1.1.0"
+var versionNum = "1.1.1"
+var stdin io.Reader = os.Stdin
 
 func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	cfg := config.DefaultConfig()
@@ -31,7 +32,7 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	fs.DurationVar(&cfg.Timeout, "timeout", 5*time.Second, "Request timeout (default: 5s)")
 	fs.DurationVar(&cfg.Timeout, "t", 5*time.Second, "Request timeout (shorthand)")
 
-	fs.StringVar(&cfg.OutputFormat, "format", "table", "Output format (table|json - default: json)")
+	fs.StringVar(&cfg.OutputFormat, "format", "table", "Output format (table|json - default: table)")
 	fs.StringVar(&cfg.OutputFormat, "f", "table", "Output format (table|json)")
 
 	fs.StringVar(&targetFile, "file", "", "Path to file containing URLs (default: \"\")")
@@ -101,7 +102,26 @@ func Execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 		return err
 	}
 	cfg.Targets = exptargs
-	raw := checker.RunPool(ctx, cfg.Targets, cfg.WorkerCount, cfg.Timeout, cfg.Method)
+	if len(cfg.Targets) > 256 && !cfg.AutoConfirm {
+		fmt.Fprintf(stderr, "Auditing %d targets. Recommend fewer targets or adjusting max targets...\nContinue? (y/N)", len(cfg.Targets))
+		scanner := bufio.NewScanner(stdin)
+		if !scanner.Scan() {
+			return errors.New("audit canceled by user")
+		}
+		ans := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if ans != "y" && ans != "yes" {
+			return errors.New("audit cancelled by user")
+		}
+	}
+	var raw []checker.CheckResult
+	for i := 0; i < len(cfg.Targets); i += cfg.BatchSize {
+		end := i + cfg.BatchSize
+		if end > len(cfg.Targets) {
+			end = len(cfg.Targets)
+		}
+		batch := cfg.Targets[i:end]
+		raw = append(raw, checker.RunPool(ctx, batch, cfg.WorkerCount, cfg.Timeout, cfg.Method)...)
+	}
 	var results []checker.CheckResult
 	var formatErr error
 	for _, r := range raw {

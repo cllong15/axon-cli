@@ -357,3 +357,51 @@ func TestExecute_Option4_Flags(t *testing.T) {
 		t.Errorf("expected 200 in output, got: %s", stdout.String())
 	}
 }
+
+func TestExecute_AutoConfirm_PromptYes(t *testing.T) {
+	origStdin := stdin
+	defer func() { stdin = origStdin }()
+
+	stdin = strings.NewReader("y\n")
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-max", "600", "-w", "50", "-t", "5ms", "-b", "100", "192.168.0.0/23:80"}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("unexpected error when confirming prompt: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "Auditing 512 targets") {
+		t.Errorf("expected audit prompt on stderr, got: %s", stderr.String())
+	}
+}
+
+func TestExecute_AutoConfirm_PromptNo(t *testing.T) {
+	origStdin := stdin
+	defer func() { stdin = origStdin }()
+
+	stdin = strings.NewReader("n\n")
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-max", "600", "192.168.0.0/23:80"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected cancellation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "audit cancelled by user") {
+		t.Errorf("expected 'audit cancelled by user' error, got: %v", err)
+	}
+}
+
+func TestExecute_AutoConfirm_PromptEOF(t *testing.T) {
+	origStdin := stdin
+	defer func() { stdin = origStdin }()
+
+	stdin = strings.NewReader("")
+
+	var stdout, stderr bytes.Buffer
+	err := Execute(context.Background(), []string{"-max", "600", "192.168.0.0/23:80"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected cancellation error on EOF, got nil")
+	}
+	if !strings.Contains(err.Error(), "audit canceled by user") {
+		t.Errorf("expected 'audit canceled by user' error, got: %v", err)
+	}
+}

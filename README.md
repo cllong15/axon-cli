@@ -161,7 +161,7 @@ axon -f json https://service-a.com https://service-b.com | jq '.[] | select(.sta
 | `--maxTargets` | `-max` | `1024` | Maximum allowable targets limit (default: 1024) |
 | `--autoConfirm` | `-y` | `false` | Auto confirm large target sweeps |
 | `--batchSize` | `-b` | `256` | Batch size for target sweeps (default: 256) |
-| `--version` | `-v` | — | Display version information (`1.0.3`) |
+| `--version` | `-v` | — | Display version information (`1.1.1`) |
 | `--help` | `-h` | — | Display help information |
 
 ---
